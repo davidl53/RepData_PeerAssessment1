@@ -1,25 +1,89 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Reproducible Research Assignment 1"
+output: html_document
 ---
+``` {r setoptions,echo=TRUE}
+```
+Load the libraries used later and then load the datafile into a dataframe called stepsData. Assumes activity.csv is in working directory.
 
+```{r}
 
-## Loading and preprocessing the data
+library(dplyr)
+library(lubridate)
+library(lattice)
 
-
-
-## What is mean total number of steps taken per day?
-
-
-
-## What is the average daily activity pattern?
-
-
-
-## Imputing missing values
+stepsData<-read.csv("activity.csv")
+```
 
 
 
-## Are there differences in activity patterns between weekdays and weekends?
+group the data by date, and calculate the mean number of steps on each day
+Plot a histogram of the distribution of the mean number of steps/day
+```{r}
+stepsGrouped<-group_by(stepsData,date)
+stepsPerDay<-summarise(stepsGrouped,meanStepsPerDay=mean(steps,na.rm=TRUE))
+
+hist(stepsPerDay$meanStepsPerDay,main="Histogram of Mean Steps per Day",xlab="Mean Number of Steps",ylab="Frequency")
+```
+
+Calculate mean and median steps per day
+```{r}
+meanspd<-mean(stepsPerDay$meanStepsPerDay, na.rm=TRUE)
+medianspd<-median(stepsPerDay$meanStepsPerDay,na.rm=TRUE)
+meanspd
+medianspd
+```
+
+
+Group the data by interval and summarise the mean steps per interval
+```{r}
+stepsGroupedByInterval<-group_by(stepsData,interval)
+stepsPerInterval=summarise(stepsGroupedByInterval, meanStepsInt=mean(steps,na.rm=TRUE))
+plot(stepsPerInterval$meanStepsInt,type="l",main="  Mean Steps per Interval",xlab="Interval",ylab="Number of Steps")
+```
+
+
+The maximum value for mean steps
+```{r}
+maxInterval <- stepsPerInterval[which(stepsPerInterval$meanStepsInt==max(stepsPerInterval$meanStepsInt)),]
+maxInterval
+```
+
+
+The number of missing values for steps
+```{r}
+numMissing<- sum(is.na(stepsData$steps))
+numMissing
+```
+
+
+Imputation.
+I have chosen to replace the missing values for steps with the mean number of steps for  the relevant interval from all days. 
+Replacing the missing values in this way would not be expected to change the result significantly. The results before and after imputing the data are indeed very similar, but the imputed data has more days with the number of steps around the mean.
+```{r}
+AddMeanStepsPerInterval<-inner_join(stepsGrouped,stepsPerInterval)
+AddMeanStepsPerInterval$steps[is.na(AddMeanStepsPerInterval$steps)]<-AddMeanStepsPerInterval$meanStepsInt[is.na(AddMeanStepsPerInterval$steps)]
+
+ImpStepsGroupedByDate <- group_by(AddMeanStepsPerInterval,date)
+ImpStepsPerDay<-summarise(ImpStepsGroupedByDate,ImpMeanSteps=mean(steps))
+ImputedMeanStepsPerDay<-mean(ImpStepsPerDay$ImpMeanSteps)
+hist(ImpStepsPerDay$ImpMeanSteps,main="Histogram of Mean Steps per Day- Imputed Data",xlab="mean steps",ylab="frequency")
+```
+
+Add a column to the data for weekend/weekday
+Then create a copy of the original data, and change the steps column of the copy to the imputed values
+Then Group by Interval and whether weekend or not, and summarise data to give mean nuber of steps for each interval for weekend and weekday
+
+```{r}
+stepsData<-mutate(stepsData,dayType=ifelse
+          (weekdays(ymd(as.character(stepsData$date)))=="Saturday"|weekdays(ymd(as.character(stepsData$date)))=="Sunday"
+           ,"Weekend","Weekday"))
+stepsDataCopy<-stepsData
+stepsDataCopy$steps<-AddMeanStepsPerInterval$steps
+weekendGrouping<-group_by(stepsDataCopy,interval,dayType)
+WeekendData<-summarise(weekendGrouping,dayTypeSteps=mean(steps))
+xyplot(dayTypeSteps~interval|dayType,data=WeekendData,type="l",layout=c(1,2),main="Comparison of Steps Per 5 Minute Interval - Weekdays and Weekends", xlab="Time of Start of 5 Minute Interval",ylab="Steps")
+
+
+
+
